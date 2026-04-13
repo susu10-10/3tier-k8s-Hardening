@@ -176,10 +176,10 @@ Changed the container application to use port 8080 internally, while the Kuberne
 
 1. **Clone the repository**
 
-   `git clone https://github.com/susu10-10/k8s-3tier-automation.git`
-   `cd k8s-3tier-automation/`
+   `git clone https://github.com/susu10-10/3tier-k8s-Hardening.git`
+   `cd 3tier-k8s-Hardening.git`
 
-2. Place the required files in the same directory as deploy.sh:
+2. Place the required files in the same directory as deploy-secure.sh:
     > `index.html` (provided above) and `default.conf` (provided above)
 
 3. Make the script executable
@@ -198,7 +198,7 @@ Changed the container application to use port 8080 internally, while the Kuberne
 
 6. Access the frontend
 
-`kubectl port-forward -n frontend-secuer svc/frontend-svc 8080:80`
+`kubectl port-forward -n frontend-secure svc/frontend-svc 8080:80`
 
       http://localhost:8080 in your browser.
       Add a fact -> it appears. Click "Random Fact" -> a random fact is shown.

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"> 
+    <title>Mystery Fact Machine</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f0f2f5; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+        #factDisplay { font-size: 1.4em; margin: 20px 0; padding: 15px; background: #eef; border-radius: 8px; }
+        input { width: 70%; padding: 8px; }
+        ul { list-style: none; padding: 0; }
+        li { background: #f9f9f9; margin: 5px 0; padding: 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>✨ Mystery Fact Machine ✨</h1>
+    <div id="factDisplay">Click "Random Fact" to start</div>
+    <button onclick="loadRandomFact()">🎲 Random Fact</button>
+    <button onclick="loadAllFacts()">📋 Show All Facts</button>
+
+    <h3>Add a new fact</h3>
+    <input type="text" id="newFactText" placeholder="Enter a mystery fact...">
+    <button onclick="addFact()">➕ Add Fact</button>
+
+    <h3>All facts</h3>
+    <ul id="factsList"></ul>
+</div>
+
+<script>
+    async function loadRandomFact() {
+        const res = await fetch('/api/facts/random');
+        const data = await res.json();
+        document.getElementById('factDisplay').innerHTML = data.text;
+    }
+
+    async function loadAllFacts() {
+        const res = await fetch('/api/facts');
+        const facts = await res.json();
+        const list = document.getElementById('factsList');
+        list.innerHTML = facts.map(f => `<li>📌 ${f.text}</li>`).join('');
+    }
+
+    async function addFact() {
+        const input = document.getElementById('newFactText');
+        const text = input.value.trim();
+        if (!text) return alert('Please enter a fact');
+        const res = await fetch('/api/facts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({text})
+        });
+        if (res.ok) {
+            input.value = '';
+            loadAllFacts();
+        } else {
+            alert('Error adding fact (maybe duplicate?)');
+        }
+    }
+
+    loadRandomFact();
+</script>
+</body>
+</html>

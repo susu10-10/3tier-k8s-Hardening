@@ -12,7 +12,7 @@ Phase 1 focused on functionality.
 
 ### 1. Pod runs as root
 
-![alt text](image.png)
+![alt text](docs/image.png)
 
 > why it's bad: Any container breakout gives the threat-actor host-level root privileges.
 
@@ -21,14 +21,14 @@ it uses two linux kernel features to create the illusion of isolation (namespace
 
 ### 2. Writable root fileSystem
 
-![alt text](image-1.png)
+![alt text](docs/image-1.png)
 
 > Threat-Actor can plant binaries, modify application code, which can persist across restarts. **filesystem is mutable**
 
 
 ### 3. Default Service account token mounted 
 
-![alt text](image-2.png)
+![alt text](docs/image-2.png)
 
 > Most of the time your application might never make use of that token. and if the pod is compromised, the threat-actor can obtain the pod's identity which often has a wide-level state permissions.
 
@@ -36,7 +36,7 @@ it uses two linux kernel features to create the illusion of isolation (namespace
 
 ### 4. Excess Linux Capabilities
 
-![alt text](image-8.png)
+![alt text](docs/image-8.png)
 
 The default state is too permissive, even an un-privliege user still have all these linux capabilities given to it.
 default capabilities include `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_NET_RAW` which are all unnecessary for a web app. 
@@ -46,7 +46,7 @@ Most microservices dont need them.
 
 ### 5. Privilege Escalation Allowed
 
-![alt text](image-3.png)
+![alt text](docs/image-3.png)
 
 A process inside the container can gain more privileges (e.g., via setuid binary)
 a child process can acquire more privilege than it parent process. with `NoNewPrivs = 0`
@@ -54,17 +54,17 @@ a child process can acquire more privilege than it parent process. with `NoNewPr
 
 ### 6. Pod Security Admission = Privileged
 
-![alt text](image-4.png)
+![alt text](docs/image-4.png)
 
 the default is `privileged` which means allow everything with the highest level of permission.
 
 ### 7. No Network Policies - flat, Open Communications
 
-![alt text](image-5.png)
+![alt text](docs/image-5.png)
 
 Any pod can talk to any other.
 
-![alt text](image-6.png)
+![alt text](docs/image-6.png)
 
 Kubernetes has a flat unrouted network space, and its network implementation is handled by the CNi-Plugin (calico, cillium etc.) and the model strictly dictates that
 > Every Pod must be able to communicate with every other pod across all namespaces without any network address translation.
@@ -74,13 +74,15 @@ so a pod in `namespace-1` which does not have any business or application commun
 
 ### 8. Secrets in Environment variable 
 
-![alt text](image-7.png)
+![alt text](docs/image-7.png)
 
 
 
 
 
 ## 🔒 Phase 2 - The Hardenening State (After)
+
+[![asciicast](https://asciinema.org/a/PKSP6nBTuEDtnFCF.svg)](https://asciinema.org/a/PKSP6nBTuEDtnFCF)
 
 ## The Security Pivot: From Phase 1 to Phase 2
 
@@ -96,7 +98,7 @@ so a pod in `namespace-1` which does not have any business or application commun
 
 Every pod now must pass strict validation before the API server accepts it. This prevents "Shadow IT" or insecure manifests from being deployed.
 
-![alt text](<Screenshot 2026-04-13 230537.png>)
+![alt text](<docs/Screenshot 2026-04-13 230537.png>)
 
 
 ### 2.  Multi-Namespace Isolation & Network Segmentation Design
@@ -106,7 +108,7 @@ Every pod now must pass strict validation before the API server accepts it. This
     - default deny All: All ingress/egress is blocked by default.
     - explicit allow rules: Only `frontend` -> `backend` (Port 5000) and `backend` -> `database` (Port 5432) are permitted.
 
-![alt text](<Screenshot 2026-04-13 230705.png>)
+![alt text](<docs/Screenshot 2026-04-13 230705.png>)
 
 ### 3. Security contexts (non‑root, read‑only root, dropped caps)
 The **Principle of Least Privilege** was applied to the container runtime.
@@ -114,28 +116,28 @@ The **Principle of Least Privilege** was applied to the container runtime.
 
 - Non-Root Execution: Containers run as specific UIDs (`70` for `Postgres`, `101` for `Nginx`, `1000` for `Backend`). This prevents a container breakout from granting host-root access.
 
-![alt text](<Screenshot 2026-04-13 230751.png>)
+![alt text](<docs/Screenshot 2026-04-13 230751.png>)
 
 - Capability Dropping: All Linux capabilities (`CAP_SYS_ADMIN`, etc.) are dropped, reducing the kernel attack surface.
 
-![alt text](<Screenshot 2026-04-13 231051.png>)
+![alt text](<docs/Screenshot 2026-04-13 231051.png>)
 
 - Privilege Escalation: Explicitly set `allowPrivilegeEscalation: false` to block setuid binary exploits.
 
-![alt text](<Screenshot 2026-04-13 232525.png>)
+![alt text](<docs/Screenshot 2026-04-13 232525.png>)
 
 Screenshot of `touch /testing` failing, `touch /tmp/testing` succeeding.
 
 ### 4. Service account tokens disabled
 - `automountServiceAccountToken: false` for all deployments.
 
-![alt text](<Screenshot 2026-04-13 230918.png>)
+![alt text](<docs/Screenshot 2026-04-13 230918.png>)
 This will prevent an attacker from stealing the pod's identity to query the K8s API.
 
 
 ### 5. Resource quotas & limit ranges
 
-![alt text](<Screenshot 2026-04-13 231334.png>)
+![alt text](<docs/Screenshot 2026-04-13 231334.png>)
 
 
 ### 6. Randomly generated secrets (idempotent)

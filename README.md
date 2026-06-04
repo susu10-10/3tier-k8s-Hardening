@@ -1,5 +1,60 @@
 # 🔒 3-Tier K8s Hardening: Phase 2 (Zer0-Trust)
 
+
+> **Architecture Overview**
+
+> A 3-tier application with a hardened Kubernetes cluster, implementing **NSA/CISA** best practices for container security. The architecture includes strict Pod Security Admission controls, network segmentation via namespaces and policies, and runtime hardening with non-root users all running with least privilege, read-only filesystems, and dropped capabilities.
+
+
+```mermaid
+graph TB
+    subgraph "Kubernetes Cluster (Hardened)"
+        
+        subgraph "Namespace: frontend-secure"
+            User((User)) --> FrontendSVC[Frontend Service<br/>port: 80]
+            FrontendSVC --> FrontendPod[Nginx Pod<br/>runAsUser: 101<br/>readOnlyRootFilesystem: true<br/>capabilities: DROP ALL]
+        end
+        
+        subgraph "Namespace: backend-secure"
+            BackendSVC[Backend Service<br/>port: 5000]
+            BackendSVC --> BackendPod[Flask API Pod<br/>runAsUser: 1000<br/>automountServiceAccountToken: false<br/>allowPrivilegeEscalation: false]
+            
+            DBSVC[PostgreSQL Service<br/>port: 5432]
+            DBSVC --> DBPod[PostgreSQL Pod<br/>runAsUser: 70<br/>readOnlyRootFilesystem: true]
+        end
+        
+        subgraph "Network Policies"
+            DenyAllIngress[Default Deny All Ingress<br/>applied in both namespaces]
+            AllowFrontendToBackend[Allow: frontend-secure → backend-secure<br/>port 5000 only]
+            AllowBackendToDB[Allow: backend-secure → postgres<br/>port 5432 only]
+        end
+        
+        subgraph "Security Controls"
+            PSA[Pod Security Admission<br/>label: restricted]
+            Secrets[Randomly generated secrets<br/>32-char base64, idempotent]
+            NoServiceAccount[ServiceAccount tokens<br/>disabled everywhere]
+        end
+    end
+    
+    FrontendPod -.-> DenyAllIngress
+    FrontendPod -.-> AllowFrontendToBackend
+    BackendPod -.-> AllowBackendToDB
+    PSA -.-> FrontendPod
+    PSA -.-> BackendPod
+    PSA -.-> DBPod
+    NoServiceAccount -.-> BackendPod
+    
+    style User fill:#e1f5fe,stroke:#01579b
+    style FrontendPod fill:#fff3e0,stroke:#e65100
+    style BackendPod fill:#fff3e0,stroke:#e65100
+    style DBPod fill:#e8f5e9,stroke:#1b5e20
+    style DenyAllIngress fill:#ffebee,stroke:#c62828
+    style AllowFrontendToBackend fill:#e8f5e9,stroke:#2e7d32
+    style AllowBackendToDB fill:#e8f5e9,stroke:#2e7d32
+    style PSA fill:#f3e5f5,stroke:#4a148c
+
+```
+
 **Goal**: Hardening a functional 3-tier application from `Privileged` to `Restricted` Pod Security Standards.
 
 ## The Security Pivot: From Phase 1 to Phase 2
@@ -10,7 +65,7 @@ Phase 1 focused on functionality.
 
 ### 1. Pod runs as root
 
-![alt text](docs/image.png)
+![alt text](./docs/image.png)
 
 > why it's bad: Any container breakout gives the threat-actor host-level root privileges.
 
@@ -19,14 +74,14 @@ it uses two linux kernel features to create the illusion of isolation (namespace
 
 ### 2. Writable root fileSystem
 
-![alt text](docs/image-1.png)
+![alt text](./docs/image-1.png)
 
 > Threat-Actor can plant binaries, modify application code, which can persist across restarts. **filesystem is mutable**
 
 
 ### 3. Default Service account token mounted 
 
-![alt text](docs/image-2.png)
+![alt text](./docs/image-2.png)
 
 > Most of the time your application might never make use of that token. and if the pod is compromised, the threat-actor can obtain the pod's identity which often has a wide-level state permissions.
 
@@ -34,7 +89,7 @@ it uses two linux kernel features to create the illusion of isolation (namespace
 
 ### 4. Excess Linux Capabilities
 
-![alt text](docs/image-8.png)
+![alt text](./docs/image-8.png)
 
 The default state is too permissive, even an un-privliege user still have all these linux capabilities given to it.
 default capabilities include `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_NET_RAW` which are all unnecessary for a web app. 
@@ -44,7 +99,7 @@ Most microservices dont need them.
 
 ### 5. Privilege Escalation Allowed
 
-![alt text](docs/image-3.png)
+![alt text](./docs/image-3.png)
 
 A process inside the container can gain more privileges (e.g., via setuid binary)
 a child process can acquire more privilege than it parent process. with `NoNewPrivs = 0`
@@ -52,17 +107,17 @@ a child process can acquire more privilege than it parent process. with `NoNewPr
 
 ### 6. Pod Security Admission = Privileged
 
-![alt text](docs/image-4.png)
+![alt text](./docs/image-4.png)
 
 the default is `privileged` which means allow everything with the highest level of permission.
 
 ### 7. No Network Policies - flat, Open Communications
 
-![alt text](docs/image-5.png)
+![alt text](./docs/image-5.png)
 
 Any pod can talk to any other.
 
-![alt text](docs/image-6.png)
+![alt text](./docs/image-6.png)
 
 Kubernetes has a flat unrouted network space, and its network implementation is handled by the CNi-Plugin (calico, cillium etc.) and the model strictly dictates that
 > Every Pod must be able to communicate with every other pod across all namespaces without any network address translation.
@@ -72,20 +127,19 @@ so a pod in `namespace-1` which does not have any business or application commun
 
 ### 8. Secrets in Environment variable 
 
-![alt text](docs/image-7.png)
+![alt text](./docs/image-7.png)
+> Secrets in environment variables can be easily exposed through process listing, logs, or accidental dumps. If an attacker gains access to the pod, they can quickly retrieve these secrets.
 
 
 
-
-
-## 🔒 Phase 2 - The Hardenening State (After)
+## 🔒 Phase 2: The Hardenening State (After)
 
 [![asciicast](https://asciinema.org/a/PKSP6nBTuEDtnFCF.svg)](https://asciinema.org/a/PKSP6nBTuEDtnFCF)
 
 ## The Security Pivot: From Phase 1 to Phase 2
 
 **Phase-1** focused on functionality. **Phase-2** focuses on defense-in-depth. 
-> I have transitioned the architecture to follow the **NSA/CISA** Kubernetes Hardening Guidance.
+> I have transitioned the architecture to follow the **NSA/CISA** Kubernetes Hardening Guidance. 
 
 
 ### 1. Pod Security Admission = restricted
@@ -100,6 +154,7 @@ Every pod now must pass strict validation before the API server accepts it. This
 
 
 ### 2.  Multi-Namespace Isolation & Network Segmentation Design
+
 - **Frontend namespace** (`frontend-secure`): Nginx only, public traffic.
 - **Backend namespace** (`backend-secure`): Flask API + PostgreSQL, no external ingress.
 - **Network Policies** :
@@ -109,7 +164,9 @@ Every pod now must pass strict validation before the API server accepts it. This
 ![alt text](<docs/Screenshot 2026-04-13 230705.png>)
 
 ### 3. Security contexts (non‑root, read‑only root, dropped caps)
+
 The **Principle of Least Privilege** was applied to the container runtime.
+
 - Immutable Root Filesystem: `readOnlyRootFilesystem: true` prevents attackers from planting malware or modifying application code.
 
 - Non-Root Execution: Containers run as specific UIDs (`70` for `Postgres`, `101` for `Nginx`, `1000` for `Backend`). This prevents a container breakout from granting host-root access.
@@ -127,6 +184,7 @@ The **Principle of Least Privilege** was applied to the container runtime.
 Screenshot of `touch /testing` failing, `touch /tmp/testing` succeeding.
 
 ### 4. Service account tokens disabled
+
 - `automountServiceAccountToken: false` for all deployments.
 
 ![alt text](<docs/Screenshot 2026-04-13 230918.png>)
@@ -139,6 +197,7 @@ This will prevent an attacker from stealing the pod's identity to query the K8s 
 
 
 ### 6. Randomly generated secrets (idempotent)
+
 - **Entropy-Driven Credentials**: I replaced hardcoded password with a 32-character base64 string generated via `openssl rand`+ local file check to avoid password change on rerun.
 
 
@@ -146,17 +205,18 @@ This will prevent an attacker from stealing the pod's identity to query the K8s 
 
 | Control | Phase 1 (Insecure) | Phase 2 (Hardened) |
 |---------|-------------------|-------------------|
-| Pod user | root | Non‑root (UID `1000`/`101`/`70`) |
+| Pod user | root | Non‑root (UID Nginx:`101`, Flask:`1000`, PostgreSQL:`70`) |
 | Root filesystem | writable | read‑only (with `/tmp` emptyDir) |
-| Service account token | mounted | disabled |
-| Linux capabilities | default (many) | all dropped |
-| Privilege escalation | allowed | disabled |
+| Service account token | mounted | disabled: `automountServiceAccountToken: false` |
+| Linux capabilities | default (many) | all dropped (`DROP ALL`) |
+| Privilege escalation | allowed | disabled: `allowPrivilegeEscalation: false` |
 | PSA label | `privileged` | `restricted` |
 | Network policies | none | default deny + explicit allow |
-| Secrets | hardcoded | random per environment |
+| Secrets | hardcoded | random 32-character base64 strings, idempotent |
 | Resource limits | none | quotas + limit ranges |
 
 ### Lesson Learned
+
 **Trade-off: Privileged Ports vs. Non-Root**
 
 Challenge: Transitioning to runAsUser: 101 (non-root) prevented Nginx from binding to port 80.
@@ -170,6 +230,8 @@ Changed the container application to use port 8080 internally, while the Kuberne
 - **kubectl** (v1.24+)
 - **kustomize** (built into `kubectl 1.14+`)
 - **Docker** (only if you need to build the backend image – otherwise use the pre‑built `succesc/fact-app-s:v3`)
+
+> For simplicity, i used killercoda which has all these tools pre-installed and a built-in cluster. you can also use minikube or kind locally.
 
 > The script uses `kubectl create --dry-run` to generate YAMLs, so no manual editing is required.
 
@@ -201,9 +263,4 @@ Changed the container application to use port 8080 internally, while the Kuberne
 `kubectl port-forward -n frontend-secure svc/frontend-svc 8080:80`
 
       http://localhost:8080 in your browser.
-      Add a fact -> it appears. Click "Random Fact" -> a random fact is shown.
-
-
-
-
-
+Add a fact -> it appears. Click "Random Fact" -> a random fact is shown.

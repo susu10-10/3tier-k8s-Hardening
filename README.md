@@ -1,7 +1,5 @@
 # 🔒 3-Tier K8s Hardening: Phase 2 (Zer0-Trust)
 
-**Author**: Su (CKAD, Sec+ Candidate)
-
 **Goal**: Hardening a functional 3-tier application from `Privileged` to `Restricted` Pod Security Standards.
 
 ## The Security Pivot: From Phase 1 to Phase 2
